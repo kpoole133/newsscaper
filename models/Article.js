@@ -1,34 +1,33 @@
-var mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
+const Schema = mongoose.Schema;
 
-var Schema = mongoose.Schema;
-
-var ArticleSchema = new Schema ({
-    headline: {
-        type: String,
-        required: true
-    },
-    summaryOne: {
-        type: String,
-        required: true
-    },
-    summaryTwo: {
-        type: String,
-        required: false
-    },
-    link: {
-        type: String,
-        required: true
-    },
-    saved: {
-        type: Boolean,
-        default: false
-    },
-    note: 
-        []
-    
+const ArticleSchema = new Schema({
+  title: {
+    type: String,
+    required: true
+  },
+  img: {
+    type: String,
+    required: true
+  },
+  link: {
+    type: String,
+    required: true
+  },
+  excerpt: {
+    type: String,
+    required: true
+  },
+  notes: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'Note'
+    }
+  ]
 });
 
-var Article = mongoose.model("Article", ArticleSchema);
+// This creates our model from the above schema, using mongoose's model method
+const Article = mongoose.model('Article', ArticleSchema);
 
 module.exports = Article;

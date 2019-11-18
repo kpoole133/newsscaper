@@ -1,123 +1,80 @@
-var express = require("express");
-var exphbs = require("express-handlebars");
-var mongoose = require("mongoose");
-var axios = require("axios");
-var cheerio = require("cheerio");
-var db = require("./models")
+const express = require('express');
+const flash = require('connect-flash');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+const exphbs = require('express-handlebars');
+const cookieParser = require('cookie-parser');
+const expressValidator = require('express-validator');
+const session = require('express-session');
+const passport = require('passport');
 
-var port = process.env.PORT || 3000;
+// Initialize Express
+const app = express();
+const PORT = process.env.PORT || 8080;
 
-var app = express();
+// serve static files from /public
+app.use(express.static('public'));
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-// Make public a static folder
-app.use(express.static("public"));
+// Sets up Express to handle data parsing
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
-app.engine("handlebars", exphbs({ defaultLayout: "main" }));
-app.set("view engine", "handlebars");
-app.set('index', __dirname + '/views');
+// validates form submission
+app.use(expressValidator());
+
+// saves the users session
+app.use(cookieParser());
+app.use(
+  session({
+    secret: 'secret',
+    saveUninitialized: false,
+    resave: false
+  })
+);
+app.use(flash());
+
+// passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// sets up handlebars
+app.engine(
+  '.hbs',
+  exphbs({
+    extname: '.hbs',
+    defaultLayout: 'main',
+    partialsDir: __dirname + '/views/partials',
+    // if else helper used to check which page gets the 'active' tab class in the nav bar
+    helpers: {
+      ifEquals: function(arg1, arg2, options) {
+        return arg1 == arg2 ? options.fn(this) : options.inverse(this);
+      }
+    }
+  })
+);
+app.set('view engine', '.hbs');
 
 // If deployed, use the deployed database. Otherwise use the local mongoHeadlines database
-var MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost/mongoHeadlines";
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost/news-scrapper';
 
+// Set mongoose to leverage built in JavaScript ES6 Promises
+// Connect to the Mongo DB
+mongoose.Promise = Promise;
+mongoose.connect(MONGODB_URI);
 
-mongoose.connect(MONGODB_URI, { useMongoClient: true });
+app.use(require('./routes/html-routes'));
+app.use(require('./routes/api-routes'));
 
-mongoose.connect("mongodb+srv://user1:Password123@americannik-dv6zc.mongodb.net/scrape?retryWrites=true&w=majority", { useNewUrlParser: true });
-
-var results = [];
-
-// Start routes here...
-app.get("/", function (req, res) {
-    db.Article.find({ saved: false }, function (err, result) {
-        if (err) throw err;
-        res.render("index", { result })
-    })
-
-});
-app.get("/newscrape", function (req, res) {
-    axios.get("https://www.nytimes.com/").then(function (response) {
-        var $ = cheerio.load(response.data)
-        $("h2 span").each(function (i, element) {
-            var headline = $(element).text();
-            var link = "https://www.nytimes.com";
-            link = link + $(element).parents("a").attr("href");
-            var summaryOne = $(element).parent().parent().siblings().children("li:first-child").text();
-            var summaryTwo = $(element).parent().parent().siblings().children("li:last-child").text();
-
-            if (headline && summaryOne && link) {
-                results.push({
-                    headline: headline,
-                    summaryOne: summaryOne,
-                    summaryTwo: summaryTwo,
-                    link: link
-                })
-            }
-        });
-        db.Article.create(results)
-            .then(function (dbArticle) {
-                res.render("index", { dbArticle });
-                console.log(dbArticle);
-            })
-            .catch(function (err) {
-                console.log(err);
-            })
-        app.get("/", function (req, res) {
-            res.render("index")
-        })
-    })
+// 404 redirect
+app.get('*', (req, res) => {
+  const obj = {};
+  // used to render url path for requested resource on a 404 page
+  obj.requested = req.originalUrl;
+  obj.page = '/404';
+  res.render('404', obj);
 });
 
-app.put("/update/:id", function (req, res) {
-    console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    db.Article.updateOne({ _id: req.params.id }, { $set: { saved: true } }, function (err, result) {
-        if (result.changedRows == 0) {
-            return res.status(404).end();
-        } else {
-            res.status(200).end();
-        }
-    });
+// starts the server
+app.listen(PORT, function() {
+  console.log('App listening on PORT: ' + PORT);
 });
-app.put("/unsave/:id", function (req, res) {
-    console.log("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-    console.log(req.body)
-    db.Article.updateOne({ _id: req.params.id }, { $set: { saved: false } }, function (err, result) {
-        if (result.changedRows == 0) {
-            return res.status(404).end();
-        } else {
-            res.status(200).end();
-        }
-    })
-})
-
-app.put("/newnote/:id", function (req, res) {
-    console.log("**********************************")
-    console.log(req.body)
-    console.log(req.body._id);
-    console.log(req.body.note);
-    db.Article.updateOne({ _id: req.body._id }, { $push: { note: req.body.note } }, function (err, result) {
-        console.log(result)
-        if (result.changedRows == 0) {
-            return res.status(404).end();
-        } else {
-            res.status(200).end();
-        }
-    })
-})
-
-
-
-app.get("/saved", function (req, res) {
-    var savedArticles = [];
-    db.Article.find({ saved: true }, function (err, saved) {
-        if (err) throw err;
-        savedArticles.push(saved)
-        res.render("saved", { saved })
-    })
-})
-
-
-app.listen(port, function () {
-    console.log("Server listening on: http://localhost:" + port);
-})
