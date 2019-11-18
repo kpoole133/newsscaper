@@ -11,7 +11,7 @@ var router = express.Router();
 // Scrape data from NPR website and save to mongodb
 router.get("/scrape", function(req, res) {
   // Grab the body of the html with request
-  request("http://www.npr.org/sections/news/archive", function(error, response, html) {
+  request("http://www.npr.org/sections/news", function(error, response, html) {
     // Load that into cheerio and save it to $ for a shorthand selector
     var $ = cheerio.load(html);
     // Grab every part of the html that contains a separate article
